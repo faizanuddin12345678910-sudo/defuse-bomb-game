@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Defuse the Bomb — Defuse in 60s</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app" role="application" aria-label="Defuse the bomb game">
+    <header class="topbar">
+      <div class="title">DEFUSE THE BOMB</div>
+      <div class="controls">
+        <button id="muteBtn" class="icon" title="Mute / Unmute">🔊</button>
+        <label class="vol">
+          <input id="volSlider" type="range" min="0" max="1" step="0.01" value="0.9">
+        </label>
+        <button id="settingsBtn" class="btn">Settings</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="left">
+        <div class="bomb-wrap">
+          <div id="bomb" class="bomb" aria-hidden="true">
+            <div id="fuse" class="fuse fuse-anim"><div class="sparks"></div></div>
+            <div class="core"><div class="label">TNT</div></div>
+          </div>
+
+          <div class="timer-card">
+            <div class="small">Time remaining</div>
+            <div id="timeNum" class="time-num">60</div>
+            <div class="bar"><div id="timeBar" class="time-fill"></div></div>
+            <div class="status" id="gameStatus">Waiting — press Start</div>
+            <div class="buttons">
+              <button id="startBtn" class="primary">Start</button>
+              <button id="resetBtn" class="ghost">Reset</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="muted">Wires (tap to cut)</div>
+              <div class="hint">Cut in the correct order. Wrong cut -10s.</div>
+            </div>
+            <div id="sequenceHint" class="small muted"></div>
+          </div>
+
+          <div id="wiresArea" class="wires" aria-label="Wires to cut"></div>
+
+          <div class="muted small" style="margin-top:8px">Activity log</div>
+          <div id="log" class="log" aria-live="polite"></div>
+        </div>
+
+        <div class="panel">
+          <div class="muted">Success image</div>
+          <div id="imagePreviewText" class="small muted">No image chosen — will prompt on success.</div>
+          <div class="file-row">
+            <button id="chooseFileBtn" class="btn">Choose Image</button>
+            <input id="fileInput" type="file" accept="image/*" aria-label="Choose success image">
+            <button id="clearImageBtn" class="ghost">Clear</button>
+          </div>
+          <div style="margin-top:8px">
+            <label class="small muted">Or paste an image URL:</label>
+            <div class="url-row">
+              <input id="urlInput" placeholder="https://example.com/image.jpg">
+              <button id="pasteUrlBtn" class="btn">Set</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <canvas id="boomCanvas" class="boom-canvas" aria-hidden="true"></canvas>
+
+    <div id="overlay" class="overlay hidden" aria-hidden="true">
+      <div class="card" id="overlayCard" role="dialog" aria-modal="true"></div>
+    </div>
+
+    <footer class="footer muted">Mobile-optimized • Touch-friendly • Sound effects (toggle above)</footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
