@@ -3,6 +3,7 @@
   // Configuration
   const START_SECONDS = 60;
   const wiresPool = ['red','green','blue'];
+  const HOSTED_PATHS = ['assets/success.jpg','assets/success.png','assets/success.webp'];
 
   // DOM
   const bombEl = document.getElementById('bomb');
@@ -28,6 +29,7 @@
   const volSlider = document.getElementById('volSlider');
 
   const IMAGE_KEY = 'defuse_success_image_dataurl_v2';
+  let hostedImageUrl = null; // site-wide hosted image (if present)
 
   // State
   let timeLeft = START_SECONDS;
@@ -42,6 +44,7 @@
   let tickIntervalId = null;
   let muted = false;
 
+  // --- Audio helpers ---
   function initAudio(){
     if(audioCtx) return;
     try{
@@ -55,9 +58,8 @@
     }catch(e){ console.warn('WebAudio not supported', e); }
   }
 
-  // Sound generators
   function playBeep(frequency=880, time=0.06, type='sine', gain=0.07){
-    if(!audioCtx) return;
+    if(!audioCtx || muted) return;
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = type; o.frequency.value = frequency;
@@ -75,21 +77,18 @@
   function startTick(){
     if(!audioCtx) initAudio();
     stopTick();
-    // light ticking using short beeps every 1s
     tickIntervalId = setInterval(()=>{ playBeep(880,0.04,'sine',0.03); }, 1000);
   }
   function stopTick(){ if(tickIntervalId) { clearInterval(tickIntervalId); tickIntervalId=null; } }
 
   function playExplosion(){
     if(!audioCtx) initAudio();
-    // layered noise + low boom
-    // low boom
+    if(muted) return;
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type='sine'; o.frequency.value=120;
     g.gain.value=0.8; g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.3);
     o.connect(g); g.connect(masterGain); o.start(); o.stop(audioCtx.currentTime + 1.3);
-    // high crackle
     const bufferSize=audioCtx.sampleRate*0.3;
     const buf = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buf.getChannelData(0);
@@ -101,7 +100,7 @@
 
   function updateMuteIcon(){ muteBtn.textContent = muted ? '🔈' : '🔊'; }
 
-  // helpers
+  // --- helpers ---
   function log(msg){ const t = new Date().toLocaleTimeString(); logEl.insertAdjacentHTML('afterbegin','<div>['+t+'] '+escapeHtml(msg)+'</div>'); }
   function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -109,7 +108,18 @@
   function saveImageDataUrl(dataUrl){ try{ localStorage.setItem(IMAGE_KEY,dataUrl); updateImagePreview(); log('Saved success image.'); }catch(e){ alert('Could not save image: storage quota.'); } }
   function clearSavedImage(){ localStorage.removeItem(IMAGE_KEY); updateImagePreview(); log('Cleared success image.'); }
 
-  function updateImagePreview(){ const d=getSavedImage(); imagePreviewText.textContent = d? 'A custom image is set and will be shown on success.' : 'No image chosen — will prompt on success.'; }
+  function updateImagePreview(){ const d=getSavedImage(); imagePreviewText.textContent = d? 'A custom image is set and will be shown on success (local override).' : (hostedImageUrl ? 'A site-wide image is set (served to all players).' : 'No image chosen — will prompt on success.'); }
+
+  // Try to detect a hosted image (site-wide) — this will be used for players if present
+  async function detectHostedImage(){
+    for(const p of HOSTED_PATHS){
+      try{
+        const resp = await fetch(p, { method: 'HEAD' });
+        if(resp.ok){ hostedImageUrl = p; log('Detected hosted image: '+p); updateImagePreview(); return; }
+      }catch(e){ /* ignore */ }
+    }
+    hostedImageUrl = null; updateImagePreview();
+  }
 
   function pickSequence(){ const arr = wiresPool.slice(); for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
 
@@ -121,9 +131,7 @@
 
   function showSequenceHint(seq){ const hint = seq.map(s=>s[0].toUpperCase()).join(' • '); document.getElementById('sequenceHint').textContent = 'Sequence: '+hint; }
 
-  function onWireTouch(e){ e.preventDefault(); // ensure single interaction
-    onWireClick(e);
-  }
+  function onWireTouch(e){ e.preventDefault(); onWireClick(e); }
 
   function onWireClick(e){ if(!running) return; const btn = e.currentTarget; if(btn.classList.contains('cut')) return; const color = btn.dataset.color; cutSequence.push(color); btn.classList.add('cut'); log('Cut '+color+' wire.'); if(!muted) playCut(); checkSequenceAfterCut(color); }
 
@@ -137,7 +145,9 @@
 
   function resetGame(){ stopTimer(); stopTick(); running=false; timeLeft=START_SECONDS; updateTimerDisplay(); renderWires(); correctSequence=[]; cutSequence=[]; statusEl.textContent='Waiting — press Start'; log('Game reset.'); bombEl.classList.remove('shake'); fuseEl.classList.remove('fuse-anim'); }
 
-  function defuse(){ stopTimer(); stopTick(); running=false; fuseEl.classList.remove('fuse-anim'); statusEl.textContent='Defused! Showing image...'; log('Bomb defused — success!'); if(!muted) playSuccess(); const saved = getSavedImage(); if(saved){ showSuccessImage(saved); } else { askForImageFile().then(dataUrl=>{ if(dataUrl){ saveImageDataUrl(dataUrl); showSuccessImage(dataUrl); } else { statusEl.textContent='No image chosen. Defused.'; } }); } }
+  function defuse(){ stopTimer(); stopTick(); running=false; fuseEl.classList.remove('fuse-anim'); statusEl.textContent='Defused! Showing image...'; log('Bomb defused — success!'); if(!muted) playSuccess(); // show hosted image first, then local, then prompt
+    if(hostedImageUrl){ showSuccessImage(hostedImageUrl); } else { const saved = getSavedImage(); if(saved){ showSuccessImage(saved); } else { askForImageFile().then(dataUrl=>{ if(dataUrl){ saveImageDataUrl(dataUrl); showSuccessImage(dataUrl); } else { statusEl.textContent='No image chosen. Defused.'; } }); } }
+  }
 
   function explode(){ stopTimer(); stopTick(); running=false; statusEl.textContent='BOOM! The bomb exploded.'; log('Time ran out — BOOM!'); fuseEl.classList.remove('fuse-anim'); bombEl.classList.add('shake'); if(!muted) playExplosion(); runBoomAnimation().then(()=>{ showOverlayBoom(); }); }
 
@@ -165,7 +175,7 @@
 
   // Settings overlay
   settingsBtn.addEventListener('click', ()=>{
-    const html = `<div style="text-align:left"><div style="font-weight:800;font-size:18px;margin-bottom:8px">Settings</div><div class="small muted" style="margin-bottom:8px">Choose an image to show on success. Images are stored locally in your browser.</div><div style="display:flex;gap:8px;margin-bottom:8px"><button id="sChoose" class="btn">Choose Image</button><button id="sClear" class="ghost">Clear Image</button></div><div style="margin-top:8px"><label class="small muted">Or paste an image URL (CORS may block fetch):</label><input id="sUrl" placeholder="https://..." style="width:100%;padding:8px;margin-top:6px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.04)"><div style="display:flex;gap:8px;margin-top:6px"><button id="sSetUrl" class="btn">Set URL</button><button id="sClose" class="ghost">Close</button></div></div></div>`;
+    const html = `<div style="text-align:left"><div style="font-weight:800;font-size:18px;margin-bottom:8px">Settings</div><div class="small muted" style="margin-bottom:8px">Choose an image to show on success. Images are stored locally in your browser. To set a site-wide image (visible to all users) use <a href="/defuse-bomb-game/admin.html">Admin page</a>.</div><div style="display:flex;gap:8px;margin-bottom:8px"><button id="sChoose" class="btn">Choose Image</button><button id="sClear" class="ghost">Clear Image</button></div><div style="margin-top:8px"><label class="small muted">Or paste an image URL (CORS may block fetch):</label><input id="sUrl" placeholder="https://..." style="width:100%;padding:8px;margin-top:6px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.04)"><div style="display:flex;gap:8px;margin-top:6px"><button id="sSetUrl" class="btn">Set URL</button><button id="sClose" class="ghost">Close</button></div></div></div>`;
     showOverlay(html);
     document.getElementById('sChoose').addEventListener('click', ()=> fileInput.click());
     document.getElementById('sClear').addEventListener('click', ()=>{ clearSavedImage(); hideOverlay(); });
@@ -182,8 +192,7 @@
   clearImageBtn.addEventListener('click', ()=>{ if(confirm('Clear saved success image?')) clearSavedImage(); });
 
   // Mute and volume
-  muteBtn.addEventListener('click', ()=>{
-    initAudio(); muted = !muted; if(masterGain) masterGain.gain.value = muted ? 0 : Number(volSlider.value || 0.9); updateMuteIcon(); });
+  muteBtn.addEventListener('click', ()=>{ initAudio(); muted = !muted; if(masterGain) masterGain.gain.value = muted ? 0 : Number(volSlider.value || 0.9); updateMuteIcon(); });
   volSlider.addEventListener('input', ()=>{ initAudio(); if(masterGain && !muted) masterGain.gain.value = Number(volSlider.value); });
 
   // Buttons
@@ -194,7 +203,7 @@
   window.addEventListener('keydown', e=>{ if(e.key==='Enter' && !running) startGame(); if(e.key==='Escape') hideOverlay(); });
 
   // Init
-  function init(){ renderWires(); resetGame(); updateImagePreview(); log('Ready — tap Start.'); }
+  async function init(){ renderWires(); resetGame(); updateImagePreview(); await detectHostedImage(); log('Ready — tap Start.'); }
   init();
 
   // expose for console debugging

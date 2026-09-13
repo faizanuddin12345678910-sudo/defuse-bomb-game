@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Admin — Defuse Bomb Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app" style="max-width:800px;margin:24px auto;padding:12px">
+    <header class="topbar">
+      <div class="title">DEFUSE THE BOMB — Admin</div>
+    </header>
+
+    <main style="margin-top:16px">
+      <div class="panel">
+        <div class="small muted">This admin page lets you upload a site-wide success image that all players will see after defusing the bomb. It uses the GitHub API to add or update a file in your repository (branch: gh-pages by default).</div>
+
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+          <label class="small muted">Choose image file (JPG/PNG/WebP)</label>
+          <input id="adminFile" type="file" accept="image/*">
+
+          <label class="small muted">GitHub Personal Access Token (required)</label>
+          <input id="adminToken" placeholder="ghp_... (your personal access token)" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+
+          <label class="small muted">Repository (owner/repo)</label>
+          <input id="adminRepo" value="faizanuddin12345678910-sudo/defuse-bomb-game" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+
+          <label class="small muted">Branch</label>
+          <input id="adminBranch" value="gh-pages" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+
+          <label class="small muted">Path (where the image will be written)</label>
+          <input id="adminPath" value="assets/success.jpg" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+
+          <div style="display:flex;gap:8px">
+            <button id="uploadBtn" class="btn">Upload to repo</button>
+            <button id="deleteBtn" class="ghost">Delete remote image</button>
+          </div>
+
+          <div id="adminLog" class="log" style="height:120px"></div>
+        </div>
+
+        <div style="margin-top:12px" class="small muted">Notes: You must provide a GitHub Personal Access Token with repo access (for a public repo, the <code>public_repo</code> scope is sufficient). The token is only used locally in your browser and is not stored by this page. After upload, the image is available at <code>https://{your-username}.github.io/defuse-bomb-game/assets/success.jpg</code> (may take a few seconds).</div>
+      </div>
+    </main>
+
+    <footer class="footer muted" style="margin-top:18px">Keep your token secret. This admin UI only runs in your browser.</footer>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
