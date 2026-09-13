@@ -23,18 +23,21 @@
 
   async function uploadFileToRepo(owner, repo, path, branch, base64Content, token, sha=null){
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
-    const body = { message: `Upload success image via admin UI`, content: base64Content, branch };
+    const body = { message: `Upload ${path} via admin UI`, content: base64Content, branch };
     if(sha) body.sha = sha;
     const resp = await fetch(url, { method: 'PUT', headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }, body: JSON.stringify(body) });
     return resp;
   }
+
+  // helper to base64-encode a JSON-safe string (handles utf-8)
+  function base64FromString(str){ return btoa(unescape(encodeURIComponent(str))); }
 
   uploadBtn.addEventListener('click', async ()=>{
     const file = adminFile.files && adminFile.files[0];
     const token = adminToken.value.trim();
     const repoVal = adminRepo.value.trim();
     const branch = adminBranch.value.trim() || 'gh-pages';
-    const path = adminPath.value.trim() || 'assets/success.jpg';
+    let path = adminPath.value.trim() || 'assets/success.jpg';
     if(!file){ return alert('Choose an image file'); }
     if(!token){ return alert('Enter your GitHub Personal Access Token'); }
     if(!repoVal || repoVal.indexOf('/')===-1) return alert('Repository must be owner/repo');
@@ -42,12 +45,25 @@
     try{
       log('Reading file...');
       const base64 = await readFileAsDataUrl(file);
+      // if admin path ends with a folder, append filename
+      if(path.endsWith('/')) path = path + file.name;
       log('Checking for existing file on repo...');
       let sha = null;
       try{ sha = await getFileSha(owner, repo, path, branch, token); log(sha ? 'Existing file found (will update).' : 'No existing file (will create new).'); }catch(e){ log('Warning: could not check existing file: '+e.message); }
-      log('Uploading...');
+      log('Uploading image...');
       const resp = await uploadFileToRepo(owner, repo, path, branch, base64, token, sha);
-      if(resp.ok){ const data = await resp.json(); log('Upload successful. File committed: '+data.content.path); alert('Upload successful — give it a few seconds and visit your Pages URL to see the image.'); }
+      if(resp.ok){ const data = await resp.json(); log('Image upload successful: '+data.content.path);
+        // create/update manifest assets/success.json pointing to this path
+        const manifest = { path: data.content.path, updated: Date.now() };
+        const manifestBase64 = base64FromString(JSON.stringify(manifest));
+        const manifestPath = 'assets/success.json';
+        let shaJson = null;
+        try{ shaJson = await getFileSha(owner, repo, manifestPath, branch, token); }catch(e){ log('Could not check manifest existence: '+e.message); }
+        log('Updating manifest '+manifestPath+' → '+manifest.path);
+        const resp2 = await uploadFileToRepo(owner, repo, manifestPath, branch, manifestBase64, token, shaJson);
+        if(resp2.ok){ log('Manifest updated. Players will see the new image soon.'); alert('Upload successful — manifest updated. Give Pages ~30-60s to serve the image.'); }
+        else{ const t = await resp2.text(); log('Manifest update failed: '+resp2.status+' '+t); alert('Upload succeeded but manifest update failed: '+resp2.status); }
+      }
       else{ const text = await resp.text(); log('Upload failed: '+resp.status+' '+text); alert('Upload failed: '+resp.status); }
     }catch(e){ log('Error: '+e.message); alert('Error: '+e.message); }
   });
@@ -67,9 +83,20 @@
       if(!sha){ log('File not found'); alert('File not found'); return; }
       log('Deleting file...');
       const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
-      const body = { message: `Delete success image via admin UI`, branch, sha };
+      const body = { message: `Delete ${path} via admin UI`, branch, sha };
       const resp = await fetch(url, { method: 'DELETE', headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }, body: JSON.stringify(body) });
-      if(resp.ok){ log('Deleted successfully'); alert('Deleted.'); } else { const text = await resp.text(); log('Delete failed: '+resp.status+' '+text); alert('Delete failed: '+resp.status); }
+      if(resp.ok){ log('Deleted successfully');
+        // also update or delete manifest
+        const manifestPath = 'assets/success.json';
+        const shaJson = await getFileSha(owner, repo, manifestPath, branch, token);
+        if(shaJson){ // delete manifest too
+          const url2 = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(manifestPath)}`;
+          const body2 = { message: `Delete manifest via admin UI`, branch, sha: shaJson };
+          const resp2 = await fetch(url2, { method: 'DELETE', headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }, body: JSON.stringify(body2) });
+          if(resp2.ok) log('Manifest deleted'); else log('Manifest delete failed');
+        }
+        alert('Deleted. Manifest cleared.');
+      } else { const text = await resp.text(); log('Delete failed: '+resp.status+' '+text); alert('Delete failed: '+resp.status); }
     }catch(e){ log('Error: '+e.message); alert('Error: '+e.message); }
   });
 })();

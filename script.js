@@ -3,6 +3,7 @@
   // Configuration
   const START_SECONDS = 60;
   const wiresPool = ['red','green','blue'];
+  const HOSTED_MANIFEST = 'assets/success.json';
   const HOSTED_PATHS = ['assets/success.jpg','assets/success.png','assets/success.webp'];
 
   // DOM
@@ -110,13 +111,18 @@
 
   function updateImagePreview(){ const d=getSavedImage(); imagePreviewText.textContent = d? 'A custom image is set and will be shown on success (local override).' : (hostedImageUrl ? 'A site-wide image is set (served to all players).' : 'No image chosen — will prompt on success.'); }
 
-  // Try to detect a hosted image (site-wide) — this will be used for players if present
+  // Try to detect a hosted image (site-wide) — prefer manifest for cache-busting
   async function detectHostedImage(){
+    try{
+      const resp = await fetch(HOSTED_MANIFEST, { cache: 'no-store' });
+      if(resp.ok){ const j = await resp.json(); if(j && j.path){ hostedImageUrl = j.path; log('Detected hosted image via manifest: '+hostedImageUrl); updateImagePreview(); return; } }
+    }catch(e){ /* ignore */ }
+    // fallback to checking commonly named paths
     for(const p of HOSTED_PATHS){
       try{
-        const resp = await fetch(p, { method: 'HEAD' });
-        if(resp.ok){ hostedImageUrl = p; log('Detected hosted image: '+p); updateImagePreview(); return; }
-      }catch(e){ /* ignore */ }
+        const r = await fetch(p, { method: 'HEAD' });
+        if(r.ok){ hostedImageUrl = p; log('Detected hosted image: '+p); updateImagePreview(); return; }
+      }catch(e){}
     }
     hostedImageUrl = null; updateImagePreview();
   }
